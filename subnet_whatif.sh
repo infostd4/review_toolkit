@@ -77,7 +77,7 @@ echo ""
 # Check if nodes_full_audit.csv exists
 if [ ! -f "$OUTDIR/nodes_full_audit.csv" ]; then
   echo "❌ Error: nodes_full_audit.csv not found"
-  echo "Run analyze_subnet.sh and checknodes.sh first to generate current subnet data"
+  echo "Run subnet_analyze.sh and checknodes.sh first to generate current subnet data"
   exit 2
 fi
 

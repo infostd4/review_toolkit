@@ -30,7 +30,7 @@ else
   else
     echo "❌ Error: No arguments provided and subnet_analysis.csv not found"
     echo "Usage: $0 [node1 node2 node3 ...]"
-    echo "   or: Run analyze_subnet.sh first to populate subnet_analysis.csv"
+    echo "   or: Run subnet_analyze.sh first to populate subnet_analysis.csv"
     exit 1
   fi
 fi

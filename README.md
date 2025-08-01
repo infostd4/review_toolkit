@@ -17,7 +17,7 @@ This toolkit provides two main analysis workflows:
 
 | Script | Purpose | Input | Output |
 |--------|---------|-------|--------|
-| `analyze_subnet.sh` | Extract basic subnet membership | Subnet ID | `subnet_analysis.csv` |
+| `subnet_analyze.sh` | Extract basic subnet membership | Subnet ID | `subnet_analysis.csv` |
 | `checknodes.sh` | Detailed node analysis with reward validation | Node list or CSV | `nodes_full_audit.csv` |
 | `subnet_whatif.sh` | Simulate subnet changes with constraint checking | Subnet ID + add/remove nodes | `subnet_whatif.csv`, `subnet_full_audit.csv` |
 
@@ -32,7 +32,7 @@ This toolkit provides two main analysis workflows:
 ./checknodes.sh node1 node2 node3
 
 # Option B: First get subnet nodes, then analyze them
-./analyze_subnet.sh subnet
+./subnet_analyze.sh subnet
 ./checknodes.sh  # Automatically reads from subnet_analysis.csv
 ```
 
@@ -40,7 +40,7 @@ This toolkit provides two main analysis workflows:
 
 ```bash
 # Step 1: Analyze current subnet
-./analyze_subnet.sh c4isl-65rwf-emhk5-5ta5m-ngl73-rgrl3-tcc56-2hkja-4erqd-iivmy-7ae
+./subnet_analyze.sh c4isl-65rwf-emhk5-5ta5m-ngl73-rgrl3-tcc56-2hkja-4erqd-iivmy-7ae
 
 # Step 2: Get detailed current topology
 ./checknodes.sh
@@ -97,7 +97,7 @@ grep "reward_region_not_found" nodes_full_audit.csv
 #### **Step 1: Current Subnet Analysis**
 ```bash
 # Extract subnet membership
-./analyze_subnet.sh subnet
+./subnet_analyze.sh subnet
 ```
 
 **Output**: `subnet_analysis.csv` with node_id, operator_id, dc_id
@@ -196,7 +196,7 @@ Compare your analysis with IC governance proposals:
 
 ```bash
 # Analyze current subnet
-./analyze_subnet.sh subnet
+./subnet_analyze.sh subnet
 ./checknodes.sh
 
 # Simulate proposed changes (example from proposal 132136)
@@ -276,8 +276,8 @@ Enhanced audit with change tracking and constraint validation:
 
 2. **"No arguments provided and subnet_analysis.csv not found"**
    ```bash
-   # Run analyze_subnet.sh first
-   ./analyze_subnet.sh <subnet_id>
+   # Run subnet_analyze.sh first
+   ./subnet_analyze.sh <subnet_id>
    ```
 
 3. **Empty results or timeout errors**
@@ -381,7 +381,7 @@ This toolkit is designed to support IC governance analysis:
 - **Risk Analysis**: Identify potential single points of failure
 
 **Example Governance Workflow:**
-1. Analyze current subnet state with `analyze_subnet.sh` + `checknodes.sh`
+1. Analyze current subnet state with `subnet_analyze.sh` + `checknodes.sh`
 2. Simulate proposed changes with `subnet_whatif.sh`
 3. Review constraint violations in `subnet_full_audit.csv`
 4. Compare with proposal requirements
@@ -393,7 +393,7 @@ This toolkit is designed to support IC governance analysis:
 
 ```bash
 # Check specific subnet
-./analyze_subnet.sh <subnet>
+./subnet_analyze.sh <subnet>
 
 # Audit current subnet nodes  
 ./checknodes.sh
