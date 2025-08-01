@@ -44,6 +44,7 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Examples:"
       echo "  $0 cv73p-6v7zi-u67oy-7jc3h-qspsz-g5lrj-4fn7k-xrax3-thek2-sl46v-jae --add-nodes new-node-1"
+      echo "  $0 cv73p-6v7zi-u67oy-7jc3h-qspsz-g5lrj-4fn7k-xrax3-thek2-sl46v-jae --add-nodes new-node-1 new-node-2"
       echo "  $0 cv73p-6v7zi-u67oy-7jc3h-qspsz-g5lrj-4fn7k-xrax3-thek2-sl46v-jae --remove-nodes old-node-1 --add-nodes new-node-1"
       exit 0
       ;;
@@ -141,13 +142,19 @@ EOF
   done
   rm -f tmp_node.json
 
-  NODE_OP_IDS=($(printf "%s\n" "${NODE_OP_IDS[@]}" | sort -u))
+  # Handle empty array case
+  if [ ${#NODE_OP_IDS[@]} -gt 0 ]; then
+    NODE_OP_IDS=($(printf "%s\n" "${NODE_OP_IDS[@]}" | sort -u))
+  else
+    NODE_OP_IDS=()
+  fi
 
   # Pull node operator records
   echo "version,node_operator_id,node_allowance,node_provider_id,dc_id,node_operator_rewardable_nodes,ipv6,max_rewardable_nodes" > "$OP_CSV_TEMP"
   DC_IDS=()
 
-  for OP in "${NODE_OP_IDS[@]}"; do
+  if [ ${#NODE_OP_IDS[@]} -gt 0 ]; then
+    for OP in "${NODE_OP_IDS[@]}"; do
     $IC_ADMIN get-node-operator "$OP" 2>/dev/null > tmp_op.json || continue
     python3 <<EOF >> "$OP_CSV_TEMP"
 import json
@@ -176,12 +183,19 @@ EOF
     [ -n "$DCID" ] && DC_IDS+=("$DCID")
   done
   rm -f tmp_op.json
+  fi
 
-  DC_IDS=($(printf "%s\n" "${DC_IDS[@]}" | sort -u))
+  # Handle empty DC_IDS array case
+  if [ ${#DC_IDS[@]} -gt 0 ]; then
+    DC_IDS=($(printf "%s\n" "${DC_IDS[@]}" | sort -u))
+  else
+    DC_IDS=()
+  fi
 
   # Pull datacenter records
   echo "version,dc_id,region,owner,gps_latitude,gps_longitude" > "$DC_CSV_TEMP"
-  for DC in "${DC_IDS[@]}"; do
+  if [ ${#DC_IDS[@]} -gt 0 ]; then
+    for DC in "${DC_IDS[@]}"; do
     $IC_ADMIN get-data-center "$DC" 2>/dev/null > tmp_dc.json || continue
     python3 <<EOF >> "$DC_CSV_TEMP"
 import json
@@ -207,6 +221,7 @@ print(','.join(row))
 EOF
   done
   rm -f tmp_dc.json
+  fi
 
   # Pull node reward types table
   REGVER=$($IC_ADMIN --nns-urls https://ic0.app get-registry-version 2>/dev/null | tail -n 1)
@@ -403,6 +418,22 @@ python3 <<EOF
 import csv
 from collections import defaultdict
 
+def get_allowed_countries(subnet_id):
+    """Return the maximum allowed countries for a given subnet type."""
+    # Subnets that allow 3 countries
+    three_country_subnets = {
+        "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe",  # NNS
+        "x33ed-h457x-bsgyx-oqxqf-6pzwv-wkhzr-rm2j3-npodi-purzm-n66cg-gae",  # SNS
+        "pzp6e-ekpqk-3c5x7-2h6so-njoeq-mt45d-h3h6c-q3mxf-vpeq5-fk5o7-yae",  # Fiduciary
+        "uzr34-akd3s-xrdag-3ql62-ocgoh-ld2ao-tamcv-54e7j-krwgb-2gm4z-oqe"   # Internet Identity
+    }
+    
+    # Check if this subnet allows 3 countries
+    if subnet_id in three_country_subnets:
+        return 3
+    else:
+        return 2  # Default: Bitcoin, European, and all other subnets allow 2 countries
+
 # Read the combined audit file
 rows = []
 with open("$FULL_AUDIT_CSV") as f:
@@ -419,11 +450,17 @@ dc_owner_idx = header.index('dc_owner')
 change_type_idx = header.index('change_type')
 constraint_violation_idx = header.index('constraint_violation')
 
+# Determine allowed countries for this subnet
+subnet_id = "$SUBNET_ID"
+max_countries_allowed = get_allowed_countries(subnet_id)
+
+print(f"🌍 Subnet {subnet_id}: Allowing max {max_countries_allowed} countries per subnet")
+
 # Track constraints (only for non-removed nodes)
 provider_nodes = defaultdict(list)
 dc_nodes = defaultdict(list)
-region_nodes = defaultdict(list)
 owner_nodes = defaultdict(list)
+country_nodes = defaultdict(list)
 
 for i, row in enumerate(rows):
     if row[change_type_idx] == "REMOVED":
@@ -432,8 +469,20 @@ for i, row in enumerate(rows):
     node_id = row[node_id_idx]
     provider_nodes[row[node_provider_id_idx]].append((i, node_id))
     dc_nodes[row[node_operator_dc_idx]].append((i, node_id))
-    region_nodes[row[dc_region_idx]].append((i, node_id))
     owner_nodes[row[dc_owner_idx]].append((i, node_id))
+    
+    # Extract country from dc_region (format: "Continent,Country,City")
+    dc_region = row[dc_region_idx]
+    if ',' in dc_region:
+        parts = dc_region.split(',')
+        if len(parts) >= 2:
+            country = parts[1].strip()
+        else:
+            country = dc_region.strip()
+    else:
+        country = dc_region.strip()
+    
+    country_nodes[country].append((i, node_id))
 
 # Flag violations
 for i, row in enumerate(rows):
@@ -446,21 +495,39 @@ for i, row in enumerate(rows):
     
     node_id = row[node_id_idx]
     
-    # Check for duplicate provider
+    # Special case: Dfinity provider is allowed up to 3 nodes in NNS subnet
+    DFINITY_PROVIDER = "bvcsg-3od6r-jnydw-eysln-aql7w-td5zn-ay5m6-sibd2-jzojt-anwag-mqe"
+    NNS_SUBNET = "tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe"
+    is_dfinity_nns_exception = (row[node_provider_id_idx] == DFINITY_PROVIDER and subnet_id == NNS_SUBNET)
+    
+    # Check for duplicate provider (skip for Dfinity on NNS if <= 3 nodes)
     if len(provider_nodes[row[node_provider_id_idx]]) > 1:
-        violations.append("DUPLICATE_PROVIDER")
+        if not (is_dfinity_nns_exception and len(provider_nodes[row[node_provider_id_idx]]) <= 3):
+            violations.append("DUPLICATE_PROVIDER")
     
-    # Check for duplicate DC
+    # Check for duplicate DC (skip for Dfinity on NNS if <= 3 nodes)
     if len(dc_nodes[row[node_operator_dc_idx]]) > 1:
-        violations.append("DUPLICATE_DC")
+        if not (is_dfinity_nns_exception and len(dc_nodes[row[node_operator_dc_idx]]) <= 3):
+            violations.append("DUPLICATE_DC")
     
-    # Check for duplicate region
-    if len(region_nodes[row[dc_region_idx]]) > 1:
-        violations.append("DUPLICATE_REGION")
-    
-    # Check for duplicate owner
+    # Check for duplicate owner (skip for Dfinity on NNS if <= 3 nodes)
     if len(owner_nodes[row[dc_owner_idx]]) > 1:
-        violations.append("DUPLICATE_OWNER")
+        if not (is_dfinity_nns_exception and len(owner_nodes[row[dc_owner_idx]]) <= 3):
+            violations.append("DUPLICATE_OWNER")
+    
+    # Check for country constraint violations
+    dc_region = row[dc_region_idx]
+    if ',' in dc_region:
+        parts = dc_region.split(',')
+        if len(parts) >= 2:
+            country = parts[1].strip()
+        else:
+            country = dc_region.strip()
+    else:
+        country = dc_region.strip()
+    
+    if len(country_nodes[country]) > max_countries_allowed:
+        violations.append("DUPLICATE_COUNTRY")
     
     rows[i][constraint_violation_idx] = ",".join(violations) if violations else "NO_VIOLATIONS"
 

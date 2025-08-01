@@ -150,8 +150,16 @@ The script automatically checks for IC topology policy violations:
 **🚨 Violation Flags:**
 - `DUPLICATE_PROVIDER`: Multiple nodes from same provider
 - `DUPLICATE_DC`: Multiple nodes from same datacenter  
-- `DUPLICATE_REGION`: Multiple nodes from same geographic region
 - `DUPLICATE_OWNER`: Multiple nodes from same datacenter owner
+- `DUPLICATE_COUNTRY`: Too many nodes from same country (varies by subnet type)
+
+**📍 Country Constraint Rules:**
+- **3 Countries Allowed**: NNS, SNS, Fiduciary, Internet Identity subnets
+- **2 Countries Allowed**: Bitcoin, European, and all other application subnets
+- The system automatically detects subnet type and applies appropriate limits
+
+**🔧 Special Constraint Exceptions:**
+- **Dfinity Provider Exception**: The Dfinity node provider (`bvcsg-3od6r-jnydw-eysln-aql7w-td5zn-ay5m6-sibd2-jzojt-anwag-mqe`) is allowed up to 3 nodes in the NNS subnet (`tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe`), permitting `DUPLICATE_PROVIDER`, `DUPLICATE_DC`, and `DUPLICATE_OWNER` violations for this specific case
 
 **Combined violations** are comma-separated: `DUPLICATE_PROVIDER,DUPLICATE_DC`
 
