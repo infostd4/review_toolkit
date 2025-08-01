@@ -218,7 +218,7 @@ Compare your analysis with IC governance proposals:
 ./subnet_analyze.sh subnet
 ./checknodes.sh
 
-# Simulate proposed changes (example from proposal 132136)
+# Simulate proposed changes (example from proposal 135700)
 ./subnet_whatif.sh subnet \
   --add-nodes proposed-node-1 proposed-node-2 \
   --remove-nodes current-node-1 current-node-2

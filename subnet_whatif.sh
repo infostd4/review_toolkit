@@ -578,9 +578,9 @@ echo "  - Whatif analysis: $WHATIF_CSV"
 echo "  - Combined audit: $FULL_AUDIT_CSV"
 echo ""
 echo "🔗 Next Steps:"
-echo "  1. Review $FULL_AUDIT_CSV for complete analysis"
+echo "  1. Review /Users/Studio4/ic/review_toolkit/subnet_full_audit.csv for complete analysis"
 echo "  2. Check constraint violations for topology compliance"
-echo "  3. Compare with target proposal: https://dashboard.internetcomputer.org/proposal/132136"
+echo "  3. Compare with target proposal: https://dashboard.internetcomputer.org/proposal/135700"
 echo "  4. Check if added nodes are healthy using https://dashboard.internetcomputer.org/nodes"
 
 
