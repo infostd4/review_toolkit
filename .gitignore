@@ -1,0 +1,20 @@
+# Generated data files
+*.csv
+topology.json
+
+# Temporary files
+*.tmp
+*.log
+
+# macOS files
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*~
+*.bak
