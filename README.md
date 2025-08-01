@@ -13,6 +13,17 @@ This toolkit provides two main analysis workflows:
 
 ---
 
+## **✨ Key Features**
+
+- **🔄 Real-Time Data**: Fetches latest network state directly from IC, no dependency on static files
+- **🛡️ Constraint Validation**: Automatically checks IC topology policies and decentralization requirements
+- **📊 Comprehensive Analysis**: Node operators, datacenters, geographic distribution, and reward validation
+- **🎯 Governance Support**: Designed for IC governance proposal analysis and voting decisions
+- **⚡ Rate-Limited API**: Built-in delays to avoid overwhelming IC endpoints
+- **🔍 Detailed Reporting**: CSV outputs with complete metadata and change tracking
+
+---
+
 ## **📁 Available Scripts**
 
 | Script | Purpose | Input | Output |
@@ -47,8 +58,8 @@ This toolkit provides two main analysis workflows:
 
 # Step 3: Simulate subnet modifications
 ./subnet_whatif.sh c4isl-65rwf-emhk5-5ta5m-ngl73-rgrl3-tcc56-2hkja-4erqd-iivmy-7ae \
-  --add-nodes 2katp-edgoa-qnmux-ynruc-wwgub-y5von-zavsw-nvzfs-dwj4i-t7jil-fqe f3t2w-pzmmm-65xb6-u2afi-y2ewh-gwvto-f7qtr-2xhv4-awen7-m3cdg-lqe pgjz5-43cqv-cgeef-xbnyk-5alxm-4nq6y-wrpf3-dz5qk-t3dbg-jr7p6-oqe u7xea-i2nf7-uyfwo-r756v-dazwi-g3no5-aaylx-6dwmb-6jtm7-ezg75-3ae \
-  --remove-nodes 62qwz-bp4wo-tdrcm-vincq-mdhz3-g6bfq-axwcr-vog76-fe4f3-lvepx-bae e5xk3-7dbi6-2zaxv-7ng3v-if5va-yktmq-roase-rqvx3-dii3z-2kh3r-vqe iqnlc-oy677-m524v-tisrn-3v44n-2eylu-bclq3-fqjtg-4ab7z-ycrie-mqe mwrqx-e25kz-tchcz-quxpv-jhwdn-rwxeg-au4ci-xv5ko-s44pv-dmu6g-kqe \
+  --add-nodes c6vcy-6g4me-zzd7n-kaylz-ujxmo-b27zq-us5th-w3t7x-ysolf-3mgpe-7ae u7xea-i2nf7-uyfwo-r756v-dazwi-g3no5-aaylx-6dwmb-6jtm7-ezg75-3ae \
+  --remove-nodes iqnlc-oy677-m524v-tisrn-3v44n-2eylu-bclq3-fqjtg-4ab7z-ycrie-mqe mwrqx-e25kz-tchcz-quxpv-jhwdn-rwxeg-au4ci-xv5ko-s44pv-dmu6g-kqe \
 ---
 
 ## **📋 Detailed Tutorial**
@@ -282,8 +293,18 @@ Enhanced audit with change tracking and constraint validation:
 
 3. **Empty results or timeout errors**
    ```bash
-   # Check network connectivity
+   # Check network connectivity and IC network status
    ic-admin --nns-urls https://ic0.app get-registry-version
+   
+   # Test subnet access directly
+   ic-admin --nns-url https://ic0.app get-subnet <subnet_id>
+   ```
+
+4. **Rate limiting or API errors**
+   ```bash
+   # The scripts include built-in delays to avoid rate limiting
+   # If you encounter issues, wait a moment and retry
+   # Check IC network status at https://status.internetcomputer.org/
    ```
 
 ### **Validation Steps:**
@@ -295,8 +316,9 @@ ls -la *.sh
 # Check if all scripts are executable
 chmod +x *.sh
 
-# Test basic ic-admin connectivity
-ic-admin --nns-urls https://ic0.app get-subnet subnet
+# Test basic ic-admin connectivity and subnet access
+ic-admin --nns-urls https://ic0.app get-registry-version
+ic-admin --nns-url https://ic0.app get-subnet <subnet_id>
 ```
 
 ### **Finding Node Provider Information:**

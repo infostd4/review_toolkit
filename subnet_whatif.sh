@@ -514,6 +514,8 @@ echo "🔗 Next Steps:"
 echo "  1. Review $FULL_AUDIT_CSV for complete analysis"
 echo "  2. Check constraint violations for topology compliance"
 echo "  3. Compare with target proposal: https://dashboard.internetcomputer.org/proposal/132136"
+echo "  4. Check if added nodes are healthy using https://dashboard.internetcomputer.org/nodes"
+
 
 # Clean up any remaining temp files
 rm -f tmp_*.json

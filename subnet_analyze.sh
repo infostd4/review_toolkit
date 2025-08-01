@@ -1,7 +1,6 @@
 #!/bin/bash
 
 SUBNET_ID="$1"
-TOPOLOGY_FILE="topology.json"
 OUT_CSV="subnet_analysis.csv"
 
 if [ -z "$SUBNET_ID" ]; then
@@ -10,18 +9,22 @@ if [ -z "$SUBNET_ID" ]; then
   exit 1
 fi
 
-if [ ! -f "$TOPOLOGY_FILE" ]; then
-  echo "Missing topology.json. Run:"
-  echo "  ic-admin --nns-url https://ic0.app get-topology > topology.json"
+echo "🔍 Analyzing subnet: $SUBNET_ID"
+echo "📡 Fetching latest subnet data from IC network..."
+
+# Get subnet data directly from IC network
+SUBNET_DATA=$(ic-admin --nns-url https://ic0.app get-subnet "$SUBNET_ID" 2>/dev/null)
+
+if [ $? -ne 0 ] || [ -z "$SUBNET_DATA" ]; then
+  echo "❌ Error: Failed to fetch subnet $SUBNET_ID from IC network"
+  echo "   Check your internet connection and verify the subnet ID is correct"
   exit 2
 fi
-
-echo "🔍 Analyzing subnet: $SUBNET_ID"
 
 # Create simplified CSV with essential information
 echo "node_id,node_operator_id,dc_id" > "$OUT_CSV"
 
-NODE_IDS=$(jq -r --arg sid "$SUBNET_ID" '.subnets[$sid].membership[]' "$TOPOLOGY_FILE")
+NODE_IDS=$(echo "$SUBNET_DATA" | jq -r '.records[0].value.membership[]' 2>/dev/null)
 
 if [ -z "$NODE_IDS" ]; then
   echo "❌ Error: Subnet $SUBNET_ID not found or has no nodes"
@@ -31,10 +34,38 @@ fi
 NODE_COUNT=$(echo "$NODE_IDS" | wc -l | xargs)
 echo "📊 Found $NODE_COUNT nodes in subnet"
 
+echo "📡 Fetching detailed node information..."
 for NODE_ID in $NODE_IDS; do
-  # Extract essential node information
-  OP_ID=$(jq -r --arg sid "$SUBNET_ID" --arg nid "$NODE_ID" '.subnets[$sid].nodes[$nid].node_operator_id // "unknown"' "$TOPOLOGY_FILE")
-  DC_ID=$(jq -r --arg sid "$SUBNET_ID" --arg nid "$NODE_ID" '.subnets[$sid].nodes[$nid].dc_id // "unknown"' "$TOPOLOGY_FILE")
+  # Get detailed node information directly from IC network
+  NODE_DATA=$(ic-admin --json --nns-url https://ic0.app get-node "$NODE_ID" 2>/dev/null)
+  
+  if [ $? -eq 0 ] && [ -n "$NODE_DATA" ]; then
+    # Extract node operator ID
+    OP_ID=$(echo "$NODE_DATA" | jq -r '.value.node_operator_id // "unknown"' 2>/dev/null)
+    
+    # Get datacenter ID from node operator record
+    if [ "$OP_ID" != "unknown" ]; then
+      # Small delay to avoid rate limiting
+      sleep 0.1
+      OP_DATA=$(ic-admin --json --nns-url https://ic0.app get-node-operator "$OP_ID" 2>/dev/null)
+      if [ $? -eq 0 ] && [ -n "$OP_DATA" ]; then
+        DC_ID=$(echo "$OP_DATA" | jq -r '.value.dc_id // "unknown"' 2>/dev/null)
+        if [ "$DC_ID" = "unknown" ]; then
+          echo "⚠️  Warning: Could not extract dc_id for operator $OP_ID"
+        fi
+      else
+        echo "⚠️  Warning: Could not fetch operator data for $OP_ID"
+        DC_ID="unknown"
+      fi
+    else
+      echo "⚠️  Warning: Could not extract operator_id for node $NODE_ID"
+      DC_ID="unknown"
+    fi
+  else
+    echo "⚠️  Warning: Could not fetch data for node $NODE_ID"
+    OP_ID="unknown"
+    DC_ID="unknown"
+  fi
 
   echo "$NODE_ID,$OP_ID,$DC_ID" >> "$OUT_CSV"
 done
@@ -61,5 +92,5 @@ done
 echo ""
 echo "🔗 Next steps:"
 echo "  1. Review $OUT_CSV for current topology"
-echo "  2. Use subnet_whatif.sh to simulate changes"
-echo "  3. Compare with target proposal: https://dashboard.internetcomputer.org/proposal/132136"
+echo "  2. Run checknodes.sh to get detailed node analysis"
+echo "  3. Use subnet_whatif.sh to simulate changes"
