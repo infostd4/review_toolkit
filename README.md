@@ -18,6 +18,7 @@ This toolkit provides two main analysis workflows:
 - **🔄 Real-Time Data**: Fetches latest network state directly from IC, no dependency on static files
 - **🛡️ Constraint Validation**: Automatically checks IC topology policies and decentralization requirements
 - **📊 Comprehensive Analysis**: Node operators, datacenters, geographic distribution, and reward validation
+- **🗺️ Geographic Visualization**: Interactive maps and terminal-based geographic summaries
 - **🎯 Governance Support**: Designed for IC governance proposal analysis and voting decisions
 - **⚡ Rate-Limited API**: Built-in delays to avoid overwhelming IC endpoints
 - **🔍 Detailed Reporting**: CSV outputs with complete metadata and change tracking
@@ -30,7 +31,9 @@ This toolkit provides two main analysis workflows:
 |--------|---------|-------|--------|
 | `subnet_analyze.sh` | Extract basic subnet membership | Subnet ID | `subnet_analysis.csv` |
 | `checknodes.sh` | Detailed node analysis with reward validation | Node list or CSV | `nodes_full_audit.csv` |
-| `subnet_whatif.sh` | Simulate subnet changes with constraint checking | Subnet ID + add/remove nodes | `subnet_whatif.csv`, `subnet_full_audit.csv` |
+| `subnet_whatif.sh` | Simulate subnet changes with constraint checking | Subnet ID + add/remove nodes | `subnet_whatif.csv`, `subnet_full_audit.csv`, `subnet_map.html` |
+| `generate_subnet_map.py` | Create interactive geographic map | CSV data | Interactive HTML map |
+| `generate_geo_summary.py` | Terminal-based geographic analysis | CSV data | Console geographic summary |
 
 ---
 
@@ -51,18 +54,65 @@ This toolkit provides two main analysis workflows:
 
 ```bash
 # Step 1: Analyze current subnet
-./subnet_analyze.sh c4isl-65rwf-emhk5-5ta5m-ngl73-rgrl3-tcc56-2hkja-4erqd-iivmy-7ae
+./subnet_analyze.sh fuqsr-in2lc-zbcjj-ydmcw-pzq7h-4xm2z-pto4i-dcyee-5z4rz-x63ji-nae
 
 # Step 2: Get detailed current topology
 ./checknodes.sh
 
 # Step 3: Simulate subnet modifications
-./subnet_whatif.sh c4isl-65rwf-emhk5-5ta5m-ngl73-rgrl3-tcc56-2hkja-4erqd-iivmy-7ae \
-  --add-nodes c6vcy-6g4me-zzd7n-kaylz-ujxmo-b27zq-us5th-w3t7x-ysolf-3mgpe-7ae u7xea-i2nf7-uyfwo-r756v-dazwi-g3no5-aaylx-6dwmb-6jtm7-ezg75-3ae \
-  --remove-nodes iqnlc-oy677-m524v-tisrn-3v44n-2eylu-bclq3-fqjtg-4ab7z-ycrie-mqe mwrqx-e25kz-tchcz-quxpv-jhwdn-rwxeg-au4ci-xv5ko-s44pv-dmu6g-kqe \
+./subnet_whatif.sh fuqsr-in2lc-zbcjj-ydmcw-pzq7h-4xm2z-pto4i-dcyee-5z4rz-x63ji-nae \
+  --add-nodes h2cfd-cqlyj-nu7rj-irpvy-ybq4h-x2nxr-zlelh-en4s2-f36vy-oa3it-rae \
+  --remove-nodes foasq-jql3g-5njm3-75iv5-5zlx3-lbods-dnsbj-k7srs-3isgp-k4wlo-tqe
 ---
 
-## **📋 Detailed Tutorial**
+## **�️ Geographic Visualization**
+
+The toolkit includes powerful geographic visualization tools to help analyze subnet topology and make informed governance decisions.
+
+### **Interactive HTML Map**
+
+The `subnet_whatif.sh` script automatically generates an interactive map showing:
+
+- **📍 Node Locations**: GPS coordinates from datacenter records
+- **🎨 Color-Coded Changes**: 
+  - 🟢 Green: Added nodes
+  - 🔴 Red: Removed nodes  
+  - 🔵 Blue: Unchanged nodes
+  - 🟡 Yellow: Constraint violations
+- **💡 Detailed Popups**: Click any node for complete information
+- **📊 Summary Panel**: Overview of changes and violations
+
+**Usage:**
+```bash
+# Automatically generated during subnet_whatif.sh
+./subnet_whatif.sh subnet --add-nodes node1 --remove-nodes node2
+
+# Manual generation
+python3 generate_subnet_map.py --input subnet_full_audit.csv --output map.html
+```
+
+### **Terminal Geographic Summary**
+
+For quick analysis without opening a browser:
+
+```bash
+# Detailed terminal-based geographic breakdown
+python3 generate_geo_summary.py --input subnet_full_audit.csv
+
+# Integrated into subnet_whatif.sh workflow
+./subnet_whatif.sh subnet --add-nodes node1  # Shows geographic summary
+```
+
+**Terminal Summary Features:**
+- 🌎 Country-wise node distribution
+- 🏙️ City and datacenter breakdown
+- 🚨 Constraint violation highlighting
+- 📊 Change type visualization with emojis
+- 🔍 Datacenter clustering analysis
+
+---
+
+## **�📋 Detailed Tutorial**
 
 ### **1. Node-Level Analysis with Reward Validation**
 
@@ -234,7 +284,32 @@ grep -v "NO_VIOLATIONS\|REMOVED_NODE" subnet_full_audit.csv
 cut -d',' -f14 subnet_full_audit.csv | tail -n +2 | sort | uniq -c | sort -nr
 ```
 
-### **3. Datacenter Consolidation Check**
+### **3. Geographic Distribution Analysis**
+
+```bash
+# Analyze regional distribution
+cut -d',' -f14 subnet_full_audit.csv | tail -n +2 | sort | uniq -c | sort -nr
+
+# Terminal-based geographic analysis
+python3 generate_geo_summary.py --input subnet_full_audit.csv
+```
+
+### **4. Interactive Map Analysis**
+
+Open the generated `subnet_map.html` in a browser to:
+
+- Visually identify geographic clustering
+- Check for single points of failure
+- Analyze impact of proposed changes on geographic distribution
+- Verify compliance with decentralization requirements
+
+**Map Features:**
+- Zoom and pan for detailed regional analysis
+- Click nodes for comprehensive information
+- Color-coded constraint violations
+- Legend showing change types and violations
+
+### **5. Datacenter Consolidation Check**
 
 ```bash
 # Find potential datacenter conflicts
@@ -434,10 +509,4 @@ This toolkit is designed to support IC governance analysis:
 # Check for violations
 grep -E "DUPLICATE_|violation" subnet_full_audit.csv
 ```
-
-
-
-
-
-
 

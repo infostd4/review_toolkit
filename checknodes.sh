@@ -209,7 +209,8 @@ with open("$NODE_CSV") as infile, open("$FINAL_CSV", "w", newline='') as outfile
         "version","node_id","hostos_version_id","node_operator_id","node_provider_id",
         "node_allowance","node_reward_type","node_operator_rewardable_nodes",
         "node_operator_dc","dc_owner","dc_region","reward_region","reward_xdr",
-        "reward_coefficient","reward_table_issue","node_operator_principal_id_mismatch","reward_type_mismatch"
+        "reward_coefficient","reward_table_issue","node_operator_principal_id_mismatch","reward_type_mismatch",
+        "gps_latitude","gps_longitude"
     ]
     writer = csv.writer(outfile)
     writer.writerow(out_header)
@@ -255,7 +256,7 @@ with open("$NODE_CSV") as infile, open("$FINAL_CSV", "w", newline='') as outfile
         
         # Create row in the new column order
         # Original row: version,node_id,xnet,http,node_operator_id,chip_id,hostos_version_id,public_ipv4_config,domain,node_reward_type
-        # New order: version,node_id,hostos_version_id,node_operator_id,node_provider_id,node_allowance,node_reward_type,node_operator_rewardable_nodes,node_operator_dc,dc_owner,dc_region,reward_region,reward_xdr,reward_coefficient,reward_table_issue,node_operator_principal_id_mismatch,reward_type_mismatch
+        # New order: version,node_id,hostos_version_id,node_operator_id,node_provider_id,node_allowance,node_reward_type,node_operator_rewardable_nodes,node_operator_dc,dc_owner,dc_region,reward_region,reward_xdr,reward_coefficient,reward_table_issue,node_operator_principal_id_mismatch,reward_type_mismatch,gps_latitude,gps_longitude
         reordered_row = [
             row[0],  # version
             row[1],  # node_id  
@@ -273,7 +274,9 @@ with open("$NODE_CSV") as infile, open("$FINAL_CSV", "w", newline='') as outfile
             reward_coeff,   # reward_coefficient
             reward_issue,   # reward_table_issue
             principal_mismatch,  # node_operator_principal_id_mismatch
-            reward_type_valid    # reward_type_mismatch
+            reward_type_valid,   # reward_type_mismatch
+            dc_info[4] if len(dc_info) > 4 else "None",  # gps_latitude
+            dc_info[5] if len(dc_info) > 5 else "None"   # gps_longitude
         ]
         writer.writerow(reordered_row)
 EOF

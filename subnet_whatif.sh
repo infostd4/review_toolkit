@@ -280,7 +280,7 @@ with open("$NODE_CSV_TEMP") as infile, open("$WHATIF_CSV", "w", newline='') as o
         "version","node_id","hostos_version_id","node_operator_id","node_provider_id",
         "node_allowance","node_reward_type","node_operator_rewardable_nodes",
         "node_operator_dc","dc_owner","dc_region","reward_region","reward_xdr",
-        "reward_coefficient","reward_table_issue","node_operator_principal_id_mismatch","reward_type_mismatch","change_type"
+        "reward_coefficient","reward_table_issue","node_operator_principal_id_mismatch","reward_type_mismatch","change_type","gps_latitude","gps_longitude"
     ]
     writer = csv.writer(outfile)
     writer.writerow(out_header)
@@ -342,7 +342,7 @@ with open("$NODE_CSV_TEMP") as infile, open("$WHATIF_CSV", "w", newline='') as o
         
         # Create row in the new column order
         # Original row: version,node_id,xnet,http,node_operator_id,chip_id,hostos_version_id,public_ipv4_config,domain,node_reward_type
-        # New order: version,node_id,hostos_version_id,node_operator_id,node_provider_id,node_allowance,node_reward_type,node_operator_rewardable_nodes,node_operator_dc,dc_owner,dc_region,reward_region,reward_xdr,reward_coefficient,reward_table_issue,node_operator_principal_id_mismatch,reward_type_mismatch,change_type
+        # New order: version,node_id,hostos_version_id,node_operator_id,node_provider_id,node_allowance,node_reward_type,node_operator_rewardable_nodes,node_operator_dc,dc_owner,dc_region,reward_region,reward_xdr,reward_coefficient,reward_table_issue,node_operator_principal_id_mismatch,reward_type_mismatch,change_type,gps_latitude,gps_longitude
         reordered_row = [
             row[0],  # version
             row[1],  # node_id  
@@ -361,7 +361,9 @@ with open("$NODE_CSV_TEMP") as infile, open("$WHATIF_CSV", "w", newline='') as o
             reward_issue,   # reward_table_issue
             principal_id_mismatch,  # node_operator_principal_id_mismatch
             reward_type_mismatch,   # reward_type_mismatch
-            change_type    # change_type
+            change_type,    # change_type
+            dc_info[4] if len(dc_info) > 4 else "None",  # gps_latitude
+            dc_info[5] if len(dc_info) > 5 else "None"   # gps_longitude
         ]
         writer.writerow(reordered_row)
 EOF
@@ -404,9 +406,13 @@ try:
             writer = csv.writer(outfile)
             for row in reader:
                 # Only append ADDED nodes, not REMOVED ones (they're already flagged above)
-                if row[-1] == "ADDED":  # change_type is the last column
-                    # Add empty constraint_violation column
-                    writer.writerow(row + [""])
+                # In whatif CSV: change_type is column 17, gps_lat is 18, gps_lon is 19
+                if len(row) > 17 and row[17] == "ADDED":
+                    # Reorder for full_audit CSV: move GPS coordinates before change_type
+                    # whatif order: ..., reward_type_mismatch(16), change_type(17), gps_lat(18), gps_lon(19)
+                    # full_audit order: ..., reward_type_mismatch(16), gps_lat(17), gps_lon(18), change_type(19), constraint_violation(20)
+                    reordered_row = row[:17] + [row[18], row[19], row[17]] + [""]  # Add empty constraint_violation
+                    writer.writerow(reordered_row)
 except FileNotFoundError:
     pass  # No whatif nodes to append
 EOF
@@ -578,11 +584,37 @@ echo "  - Whatif analysis: $WHATIF_CSV"
 echo "  - Combined audit: $FULL_AUDIT_CSV"
 echo ""
 echo "🔗 Next Steps:"
-echo "  1. Review /Users/Studio4/ic/review_toolkit/subnet_full_audit.csv for complete analysis"
+echo "  1. Review $FULL_AUDIT_CSV for complete analysis"
 echo "  2. Check constraint violations for topology compliance"
 echo "  3. Compare with target proposal: https://dashboard.internetcomputer.org/proposal/135700"
 echo "  4. Check if added nodes are healthy using https://dashboard.internetcomputer.org/nodes"
 
+# --- STEP 5: GENERATE GEOGRAPHIC ANALYSIS ---
+echo ""
+echo "🗺️  Generating geographic analysis..."
+
+# Terminal-friendly geographic summary
+if command -v python3 >/dev/null 2>&1 && [ -f "$OUTDIR/generate_geo_summary.py" ]; then
+  python3 "$OUTDIR/generate_geo_summary.py" \
+    --input "$FULL_AUDIT_CSV" \
+    --subnet-id "$SUBNET_ID"
+else
+  echo "  ⚠️  Geographic summary skipped (python3 or generate_geo_summary.py not found)"
+fi
+
+# Interactive HTML map
+echo ""
+echo "🌐 Generating interactive map..."
+if command -v python3 >/dev/null 2>&1 && [ -f "$OUTDIR/generate_subnet_map.py" ]; then
+  python3 "$OUTDIR/generate_subnet_map.py" \
+    --input "$FULL_AUDIT_CSV" \
+    --output "$OUTDIR/subnet_map.html" \
+    --subnet-id "$SUBNET_ID"
+  echo "  📍 Interactive map: $OUTDIR/subnet_map.html"
+  echo "  🌐 Open in browser: file://$OUTDIR/subnet_map.html"
+else
+  echo "  ⚠️  Map generation skipped (python3 or generate_subnet_map.py not found)"
+fi
 
 # Clean up any remaining temp files
 rm -f tmp_*.json
