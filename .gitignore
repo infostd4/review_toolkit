@@ -2,6 +2,10 @@
 *.csv
 topology.json
 
+# Generated visualization files
+subnet_map.html
+*.html
+
 # Temporary files
 *.tmp
 *.log
