@@ -1,4 +1,4 @@
-# Interne# Internet Computer Network Review Toolkit
+# Internet Computer Network Review Toolkit
 
 A comprehensive suite of tools for analyzing IC network topology, validating subnet configurations, and simulating subnet modifications with constraint checking. Designed to support IC governance decisions with detailed analysis of node operators, datacenters, geographic distribution, and topology compliance.
 
