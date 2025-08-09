@@ -991,8 +991,7 @@ with open('subnet_full_audit.csv', 'w', newline='') as outfile:
 print("🔄 Checking topology constraints...")
 EOF
 
-# Use the correct constraint violation logic from subnet_whatif.sh
-cd "$DATA_DIR"
+# Constraint violation logic
 python3 <<EOF
 import csv
 from collections import defaultdict
