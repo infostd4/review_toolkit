@@ -189,7 +189,7 @@ generate_node_audit() {
   log_progress "Fetching ${#NODE_OP_IDS[@]} node operator records in parallel..."
   
   # Fetch node operators in parallel
-  echo "principal_id,display_name,node_allowance,rewardable_nodes,ipv6,dc_id" > "$OP_CSV"
+  echo "operator_record_key,principal_id,display_name,node_allowance,rewardable_nodes,ipv6,dc_id" > "$OP_CSV"
   local failed_operators=()
   
   # Create temp directory for parallel processing
@@ -229,6 +229,8 @@ try:
     # Operator data is in 'value' field
     operator = data.get('value', {})
     
+    # Store the operator record key (used for fetching) along with principal_id
+    operator_record_key = "$op_id"
     principal_id = operator.get('node_operator_principal_id', '')
     display_name = operator.get('node_provider_principal_id', '')
     node_allowance = operator.get('node_allowance', '')
@@ -241,7 +243,7 @@ try:
     ipv6 = operator.get('ipv6', '')
     dc_id = operator.get('dc_id', '')
     
-    print(f"{principal_id},{display_name},{node_allowance},{rewardable_nodes_str},{ipv6},{dc_id}")
+    print(f"{operator_record_key},{principal_id},{display_name},{node_allowance},{rewardable_nodes_str},{ipv6},{dc_id}")
 
 except Exception as e:
     print(f"Error processing operator $i ({op_id}): {e}", file=sys.stderr)
@@ -250,7 +252,7 @@ EOF
       log_error "Failed to fetch operator: $op_id (operator may not exist in registry)"
       failed_operators+=("$op_id")
       # Add a placeholder entry for missing operator
-      echo "$op_id,MISSING_OPERATOR,0,,,[MISSING]" >> "$OP_CSV"
+      echo "$op_id,$op_id,MISSING_OPERATOR,0,,,[MISSING]" >> "$OP_CSV"
     fi
   done
   
@@ -263,7 +265,7 @@ EOF
   fi
   
   # Extract unique datacenter IDs
-  DC_IDS=($(tail -n +2 "$OP_CSV" | cut -d',' -f6 | sort -u | grep -v '^$'))
+  DC_IDS=($(tail -n +2 "$OP_CSV" | cut -d',' -f7 | sort -u | grep -v '^$'))
   
   if [ ${#DC_IDS[@]} -eq 0 ]; then
     log_error "No valid datacenter IDs found"
@@ -388,12 +390,13 @@ try:
 except FileNotFoundError:
     print("Warning: nodes_status.csv not found", file=sys.stderr)
 
-# Read operators
+# Read operators - index by operator_record_key (which matches node_operator_id from nodes)
 try:
     with open('node_operators_status.csv', 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            operators[row['principal_id']] = row
+            # Index by operator_record_key (first column) for node lookups
+            operators[row['operator_record_key']] = row
 except FileNotFoundError:
     print("Warning: node_operators_status.csv not found", file=sys.stderr)
 
@@ -505,7 +508,264 @@ EOF
   # Cleanup temporary files
   rm -f tmp_rewards.json
 
+  # Fetch any missing datacenter data and regenerate audit
+  fetch_missing_datacenters "$FINAL_CSV"
+
   log_success "Node audit complete! Output: $FINAL_CSV"
+}
+
+# Function to fetch missing datacenter data after comprehensive audit is created
+fetch_missing_datacenters() {
+  local AUDIT_CSV="$1"
+  local DC_CSV="$DATA_DIR/datacenter_status.csv"
+  
+  if [ ! -f "$AUDIT_CSV" ]; then
+    log_error "Audit CSV not found: $AUDIT_CSV"
+    return 1
+  fi
+  
+  log_progress "Extracting datacenter IDs from comprehensive audit..."
+  
+  # Extract all unique datacenter IDs from the comprehensive audit
+  local ALL_DC_IDS=($(tail -n +2 "$AUDIT_CSV" | cut -d',' -f9 | sort -u | grep -v '^$'))
+  
+  if [ ${#ALL_DC_IDS[@]} -eq 0 ]; then
+    log_warning "No datacenter IDs found in audit"
+    return 0
+  fi
+  
+  # Check which datacenters are already in the datacenter CSV
+  local EXISTING_DC_IDS=()
+  if [ -f "$DC_CSV" ] && [ -s "$DC_CSV" ]; then
+    EXISTING_DC_IDS=($(tail -n +2 "$DC_CSV" | cut -d',' -f1 | sort -u))
+  fi
+  
+  # Find missing datacenter IDs
+  local MISSING_DC_IDS=()
+  for dc_id in "${ALL_DC_IDS[@]}"; do
+    local found=false
+    for existing_id in "${EXISTING_DC_IDS[@]}"; do
+      if [ "$dc_id" = "$existing_id" ]; then
+        found=true
+        break
+      fi
+    done
+    if [ "$found" = false ]; then
+      MISSING_DC_IDS+=("$dc_id")
+    fi
+  done
+  
+  if [ ${#MISSING_DC_IDS[@]} -eq 0 ]; then
+    log_info "All datacenters already fetched"
+    return 0
+  fi
+  
+  log_progress "Fetching ${#MISSING_DC_IDS[@]} missing datacenter records..."
+  
+  # Create datacenter CSV if it doesn't exist
+  if [ ! -f "$DC_CSV" ]; then
+    echo "datacenter_id,region,owner,gps_latitude,gps_longitude" > "$DC_CSV"
+  fi
+  
+  # Create temp directory for parallel processing
+  local temp_dc_dir=$(mktemp -d)
+  
+  # Start parallel jobs for missing datacenters
+  local dc_pids=()
+  for i in "${!MISSING_DC_IDS[@]}"; do
+    local dc_id="${MISSING_DC_IDS[$i]}"
+    {
+      $IC_ADMIN get-data-center "$dc_id" 2>/dev/null > "$temp_dc_dir/dc_${i}.json" || touch "$temp_dc_dir/dc_${i}.failed"
+    } &
+    dc_pids+=($!)
+  done
+  
+  # Wait for all datacenter jobs and show progress
+  local dc_completed=0
+  for pid in "${dc_pids[@]}"; do
+    wait $pid
+    ((dc_completed++))
+    printf "\r🔄 Progress: $dc_completed/${#MISSING_DC_IDS[@]} datacenters fetched"
+  done
+  printf "\n"
+  
+  # Process datacenter results
+  for i in "${!MISSING_DC_IDS[@]}"; do
+    local dc_id="${MISSING_DC_IDS[$i]}"
+    if [ -f "$temp_dc_dir/dc_${i}.json" ] && [ ! -f "$temp_dc_dir/dc_${i}.failed" ]; then
+      python3 <<EOF >> "$DC_CSV"
+import json
+import sys
+
+try:
+    with open('$temp_dc_dir/dc_${i}.json', 'r') as f:
+        data = json.load(f)
+    
+    # Datacenter data is in 'value' field
+    datacenter = data.get('value', {})
+    
+    datacenter_id = datacenter.get('id', '')
+    region = datacenter.get('region', '')
+    owner = datacenter.get('owner', '')
+    gps = datacenter.get('gps', {})
+    latitude = gps.get('latitude', '') if gps else ''
+    longitude = gps.get('longitude', '') if gps else ''
+    
+    print(f"{datacenter_id},{region},{owner},{latitude},{longitude}")
+
+except Exception as e:
+    print(f"Error processing datacenter $i ({dc_id}): {e}", file=sys.stderr)
+EOF
+    else
+      log_warning "Failed to fetch datacenter: $dc_id"
+      # Add placeholder entry for missing datacenter
+      echo "$dc_id,[MISSING],[MISSING],," >> "$DC_CSV"
+    fi
+  done
+  
+  # Cleanup
+  rm -rf "$temp_dc_dir"
+  
+  log_success "Fetched ${#MISSING_DC_IDS[@]} additional datacenters"
+  
+  # Now regenerate the comprehensive audit with complete datacenter data
+  log_progress "Regenerating comprehensive audit with complete datacenter data..."
+  cd "$DATA_DIR"
+  python3 <<'EOF'
+import csv
+import json
+import sys
+from collections import defaultdict
+
+# Read all CSV files into memory
+nodes = {}
+operators = {}
+datacenters = {}
+rewards = {}
+
+# Read nodes
+try:
+    with open('nodes_status.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            nodes[row['node_id']] = row
+except FileNotFoundError:
+    print("Warning: nodes_status.csv not found", file=sys.stderr)
+
+# Read operators - index by operator_record_key (which matches node_operator_id from nodes)
+try:
+    with open('node_operators_status.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Index by operator_record_key (first column) for node lookups
+            operators[row['operator_record_key']] = row
+except FileNotFoundError:
+    print("Warning: node_operators_status.csv not found", file=sys.stderr)
+
+# Read datacenters
+try:
+    with open('datacenter_status.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            datacenters[row['datacenter_id']] = row
+except FileNotFoundError:
+    print("Warning: datacenter_status.csv not found", file=sys.stderr)
+
+# Read rewards (create lookup by region and reward_type)
+try:
+    with open('node_reward_types.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            key = (row['region'].strip('"'), row['reward_type'])
+            rewards[key] = row
+except FileNotFoundError:
+    print("Warning: node_reward_types.csv not found", file=sys.stderr)
+
+# Create comprehensive audit
+with open('nodes_full_audit.csv', 'w', newline='') as f:
+    fieldnames = [
+        'version', 'node_id', 'hostos_version_id', 'node_operator_id', 
+        'node_provider_id', 'node_allowance', 'node_reward_type', 
+        'node_operator_rewardable_nodes', 'node_operator_dc', 'dc_owner', 
+        'dc_region', 'reward_region', 'reward_xdr', 'reward_coefficient',
+        'reward_table_issue', 'node_operator_principal_id_mismatch', 
+        'reward_type_mismatch', 'gps_latitude', 'gps_longitude'
+    ]
+    
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    writer.writeheader()
+    
+    for node_id, node in nodes.items():
+        row = {}
+        
+        # Node data
+        row['version'] = node.get('version', '')
+        row['node_id'] = node_id
+        row['hostos_version_id'] = node.get('hostos_version_id', '')
+        row['node_operator_id'] = node.get('node_operator_id', '')
+        row['node_reward_type'] = node.get('node_reward_type', '')
+        
+        # Operator data
+        operator_id = node.get('node_operator_id', '')
+        operator = operators.get(operator_id, {})
+        row['node_provider_id'] = operator.get('display_name', '')
+        row['node_allowance'] = operator.get('node_allowance', '')
+        row['node_operator_rewardable_nodes'] = operator.get('rewardable_nodes', '')
+        row['node_operator_dc'] = operator.get('dc_id', '')
+        
+        # Datacenter data
+        dc_id = operator.get('dc_id', '')
+        datacenter = datacenters.get(dc_id, {})
+        row['dc_owner'] = datacenter.get('owner', '')
+        row['dc_region'] = datacenter.get('region', '').strip('"')
+        row['gps_latitude'] = datacenter.get('gps_latitude', '')
+        row['gps_longitude'] = datacenter.get('gps_longitude', '')
+        
+        # Reward data - hierarchical lookup: city -> country -> continent
+        dc_region = row['dc_region']
+        node_reward_type = row['node_reward_type']
+        
+        reward = {}
+        reward_lookup_region = dc_region
+        
+        if node_reward_type and dc_region:
+            # Try different levels of specificity
+            region_parts = dc_region.split(',') if ',' in dc_region else [dc_region]
+            
+            # 1. Try full region first (most specific): "Asia,SG,Singapore"
+            reward_key = (dc_region, node_reward_type)
+            reward = rewards.get(reward_key, {})
+            
+            if not reward and len(region_parts) >= 2:
+                # 2. Try country level: "Asia,SG"
+                country_region = f"{region_parts[0]},{region_parts[1]}"
+                reward_key = (country_region, node_reward_type)
+                reward = rewards.get(reward_key, {})
+                reward_lookup_region = country_region
+            
+            if not reward and len(region_parts) >= 1:
+                # 3. Try continent level: "Asia"
+                continent_region = region_parts[0]
+                reward_key = (continent_region, node_reward_type)
+                reward = rewards.get(reward_key, {})
+                reward_lookup_region = continent_region
+        
+        row['reward_region'] = reward_lookup_region if reward else dc_region
+        row['reward_xdr'] = reward.get('xdr_permyriad_per_node_per_month', '')
+        row['reward_coefficient'] = reward.get('reward_coefficient_percent', '')
+        
+        # Validation flags - use CORRECT/MISMATCH format
+        row['reward_table_issue'] = 'MISMATCH' if not reward else 'CORRECT'
+        row['node_operator_principal_id_mismatch'] = 'MISMATCH' if operator_id != operator.get('principal_id', '') else 'CORRECT'
+        row['reward_type_mismatch'] = 'MISMATCH' if node_reward_type and dc_region and not reward else 'CORRECT'
+        
+        writer.writerow(row)
+
+print(f"✅ Regenerated comprehensive audit with {len(nodes)} nodes and complete datacenter data")
+EOF
+
+  cd "$OUTDIR"
+  log_success "Comprehensive audit updated with complete datacenter data"
 }
 
 # Function to parse subnet_whatif.txt
