@@ -1,7 +1,9 @@
 #!/bin/bash
 
 SUBNET_ID="$1"
-OUT_CSV="subnet_analysis.csv"
+OUTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DATA_DIR="$OUTDIR/data"
+OUT_CSV="$DATA_DIR/subnet_analysis.csv"
 
 if [ -z "$SUBNET_ID" ]; then
   echo "Usage: $0 <subnet_id>"
@@ -11,6 +13,9 @@ fi
 
 echo "🔍 Analyzing subnet: $SUBNET_ID"
 echo "📡 Fetching latest subnet data from IC network..."
+
+# Create data directory
+mkdir -p "$DATA_DIR"
 
 # Get subnet data directly from IC network
 SUBNET_DATA=$(ic-admin --nns-url https://ic0.app get-subnet "$SUBNET_ID" 2>/dev/null)
@@ -91,6 +96,6 @@ done
 
 echo ""
 echo "🔗 Next steps:"
-echo "  1. Review $OUT_CSV for current topology"
+echo "  1. Review data/subnet_analysis.csv for current topology"
 echo "  2. Run checknodes.sh to get detailed node analysis"
 echo "  3. Use subnet_whatif.sh to simulate changes"

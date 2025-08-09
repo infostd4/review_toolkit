@@ -6,7 +6,10 @@ A comprehensive suite of tools for analyzing IC network topology, validating sub
 
 ## **🎯 Overview**
 
-This toolkit provides two main analysis workflows:
+This toolkit provides two main analys# Simulate proposed changes (example from proposal 137147)
+./subnet_whatif.sh subnet \
+  --add-nodes proposed-node-1 proposed-node-2 \
+  --remove-nodes current-node-1 current-node-2orkflows:
 
 1. **Node-Level Analysis**: Analyze specific nodes with detailed operator, datacenter, and reward information
 2. **Subnet-Level Analysis**: Analyze entire subnets, simulate modifications, and validate topology constraints
@@ -268,7 +271,7 @@ Compare your analysis with IC governance proposals:
 ./subnet_analyze.sh subnet
 ./checknodes.sh
 
-# Simulate proposed changes (example from proposal 135700)
+# Simulate proposed changes (example from proposal 137174)
 ./subnet_whatif.sh subnet \
   --add-nodes proposed-node-1 proposed-node-2 \
   --remove-nodes current-node-1 current-node-2

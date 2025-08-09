@@ -4,11 +4,12 @@ set -euo pipefail
 # --- CONFIG ---
 IC_ADMIN="ic-admin --json --nns-urls https://ic0.app"
 OUTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NODE_CSV="$OUTDIR/nodes_status.csv"
-OP_CSV="$OUTDIR/node_operators_status.csv"
-DC_CSV="$OUTDIR/datacenter_status.csv"
-REW_CSV="$OUTDIR/node_reward_types.csv"
-FINAL_CSV="$OUTDIR/nodes_full_audit.csv"
+DATA_DIR="$OUTDIR/data"
+NODE_CSV="$DATA_DIR/nodes_status.csv"
+OP_CSV="$DATA_DIR/node_operators_status.csv"
+DC_CSV="$DATA_DIR/datacenter_status.csv"
+REW_CSV="$DATA_DIR/node_reward_types.csv"
+FINAL_CSV="$DATA_DIR/nodes_full_audit.csv"
 
 # --- 1. INPUT NODES ---
 NODES=()
@@ -18,26 +19,41 @@ if [ $# -gt 0 ]; then
   echo "📝 Using nodes from command line arguments..."
   NODES=("$@")
 else
-  # Try to read from subnet_analysis.csv
-  if [ -f "$OUTDIR/subnet_analysis.csv" ]; then
-    echo "📝 Reading nodes from subnet_analysis.csv..."
+  # Try to read from node_list.md first
+  if [ -f "$OUTDIR/node_list.md" ]; then
+    echo "📝 Reading nodes from node_list.md..."
+    # Read node IDs from markdown file (skip empty lines and comments)
+    while IFS= read -r line; do
+      # Skip empty lines and lines starting with # (comments)
+      if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+        # Extract just the node ID (trim whitespace)
+        node_id=$(echo "$line" | xargs)
+        if [[ -n "$node_id" ]]; then
+          NODES+=("$node_id")
+        fi
+      fi
+    done < "$OUTDIR/node_list.md"
+  # Fall back to reading from subnet_analysis.csv
+  elif [ -f "$DATA_DIR/subnet_analysis.csv" ]; then
+    echo "📝 Reading nodes from data/subnet_analysis.csv..."
     # Read node IDs from CSV (skip header)
     while IFS=',' read -r node_id operator_id dc_id; do
       if [ "$node_id" != "node_id" ]; then  # Skip header
         NODES+=("$node_id")
       fi
-    done < "$OUTDIR/subnet_analysis.csv"
+    done < "$DATA_DIR/subnet_analysis.csv"
   else
-    echo "❌ Error: No arguments provided and subnet_analysis.csv not found"
+    echo "❌ Error: No arguments provided and neither node_list.md nor data/subnet_analysis.csv found"
     echo "Usage: $0 [node1 node2 node3 ...]"
-    echo "   or: Run subnet_analyze.sh first to populate subnet_analysis.csv"
+    echo "   or: Create node_list.md with one node ID per line"
+    echo "   or: Run subnet_analyze.sh first to populate data/subnet_analysis.csv"
     exit 1
   fi
 fi
 
 echo "🔍 Analyzing ${#NODES[@]} nodes..."
 
-mkdir -p "$OUTDIR"
+mkdir -p "$DATA_DIR"
 
 # --- 2. PULL NODE RECORDS ---
 echo "Pulling node records..."

@@ -151,8 +151,7 @@ def generate_html_map(nodes, output_file='subnet_map.html', subnet_id=''):
     <div class="info-panel">
         <h3>IC Subnet Analysis</h3>
         <p><strong>Subnet ID:</strong><br>{subnet_id[:40]}...</p>
-        <p><strong>Total Nodes:</strong> {len(nodes)}</p>
-        <p><strong>Nodes with GPS:</strong> {len(valid_nodes)}</p>
+        <p><strong>Total Nodes Analysed:</strong> {len(nodes)}</p>
         <div>
             <strong>Changes:</strong><br>
             Added: {len([n for n in nodes if n['change_type'] == 'ADDED'])}<br>
@@ -160,7 +159,7 @@ def generate_html_map(nodes, output_file='subnet_map.html', subnet_id=''):
             Unchanged: {len([n for n in nodes if n['change_type'] == 'UNCHANGED'])}
         </div>
         <div style="margin-top: 10px;">
-            <strong>Violations:</strong><br>
+            <strong>Topology Violations:</strong><br>
             {len([n for n in nodes if n['constraint_violation'] and n['constraint_violation'] not in ['NO_VIOLATIONS', 'REMOVED_NODE']])} nodes
         </div>
     </div>

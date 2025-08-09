@@ -4,8 +4,9 @@ set -euo pipefail
 # --- CONFIG ---
 IC_ADMIN="ic-admin --json --nns-urls https://ic0.app"
 OUTDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WHATIF_CSV="$OUTDIR/subnet_whatif.csv"
-FULL_AUDIT_CSV="$OUTDIR/subnet_full_audit.csv"
+DATA_DIR="$OUTDIR/data"
+WHATIF_CSV="$DATA_DIR/subnet_whatif.csv"
+FULL_AUDIT_CSV="$DATA_DIR/subnet_full_audit.csv"
 
 SUBNET_ID=""
 ADD_NODES=()
@@ -75,9 +76,12 @@ echo "Nodes to add: ${ADD_NODES[*]:-none}"
 echo "Nodes to remove: ${REMOVE_NODES[*]:-none}"
 echo ""
 
+# Create data directory
+mkdir -p "$DATA_DIR"
+
 # Check if nodes_full_audit.csv exists
-if [ ! -f "$OUTDIR/nodes_full_audit.csv" ]; then
-  echo "❌ Error: nodes_full_audit.csv not found"
+if [ ! -f "$DATA_DIR/nodes_full_audit.csv" ]; then
+  echo "❌ Error: data/nodes_full_audit.csv not found"
   echo "Run subnet_analyze.sh and checknodes.sh first to generate current subnet data"
   exit 2
 fi
@@ -99,10 +103,10 @@ if [ ${#ALL_WHATIF_NODES[@]} -gt 0 ]; then
   echo "version,node_id,hostos_version_id,node_operator_id,node_provider_id,node_allowance,node_reward_type,node_operator_rewardable_nodes,node_operator_dc,dc_owner,dc_region,reward_region,reward_xdr,reward_coefficient,reward_table_issue,node_operator_principal_id_mismatch,reward_type_mismatch,change_type" > "$WHATIF_CSV"
 
   # Temporary files for processing
-  NODE_CSV_TEMP="$OUTDIR/temp_nodes.csv"
-  OP_CSV_TEMP="$OUTDIR/temp_operators.csv"
-  DC_CSV_TEMP="$OUTDIR/temp_datacenters.csv"
-  REW_CSV_TEMP="$OUTDIR/temp_rewards.csv"
+  NODE_CSV_TEMP="$DATA_DIR/temp_nodes.csv"
+  OP_CSV_TEMP="$DATA_DIR/temp_operators.csv"
+  DC_CSV_TEMP="$DATA_DIR/temp_datacenters.csv"
+  REW_CSV_TEMP="$DATA_DIR/temp_rewards.csv"
 
   # Pull node records for whatif nodes
   echo "version,node_id,xnet,http,node_operator_id,chip_id,hostos_version_id,public_ipv4_config,domain,node_reward_type" > "$NODE_CSV_TEMP"
@@ -380,7 +384,7 @@ python3 <<EOF
 import csv
 
 # Read current audit and add change tracking columns
-with open("$OUTDIR/nodes_full_audit.csv") as infile, open("$FULL_AUDIT_CSV", "w", newline='') as outfile:
+with open("$DATA_DIR/nodes_full_audit.csv") as infile, open("$FULL_AUDIT_CSV", "w", newline='') as outfile:
     reader = csv.reader(infile)
     header = next(reader)
     # Add change_type and constraint_violation columns
@@ -586,7 +590,7 @@ echo ""
 echo "🔗 Next Steps:"
 echo "  1. Review $FULL_AUDIT_CSV for complete analysis"
 echo "  2. Check constraint violations for topology compliance"
-echo "  3. Compare with target proposal: https://dashboard.internetcomputer.org/proposal/135700"
+echo "  3. Compare with target proposal: https://dashboard.internetcomputer.org/proposal/137147"
 echo "  4. Check if added nodes are healthy using https://dashboard.internetcomputer.org/nodes"
 
 # --- STEP 5: GENERATE GEOGRAPHIC ANALYSIS ---
@@ -608,10 +612,10 @@ echo "🌐 Generating interactive map..."
 if command -v python3 >/dev/null 2>&1 && [ -f "$OUTDIR/generate_subnet_map.py" ]; then
   python3 "$OUTDIR/generate_subnet_map.py" \
     --input "$FULL_AUDIT_CSV" \
-    --output "$OUTDIR/subnet_map.html" \
+    --output "$DATA_DIR/subnet_map.html" \
     --subnet-id "$SUBNET_ID"
-  echo "  📍 Interactive map: $OUTDIR/subnet_map.html"
-  echo "  🌐 Open in browser: file://$OUTDIR/subnet_map.html"
+  echo "  📍 Interactive map: data/subnet_map.html"
+  echo "  🌐 Open in browser: file://$DATA_DIR/subnet_map.html"
 else
   echo "  ⚠️  Map generation skipped (python3 or generate_subnet_map.py not found)"
 fi

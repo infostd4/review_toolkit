@@ -1,0 +1,9 @@
+{
+node_ids_add:[
+0:"nj7re-dvkal-yq25a-opp2g-5y3qy-3ena4-opd5j-22uir-eaakx-ljk7k-6ae"
+]
+node_ids_remove:[
+0:"rcxhc-af5ln-myck4-qrbsj-aelzk-l4hy4-o4fws-7kx57-ajldl-v6pmo-fqe"
+]
+subnet_id:"tdb26-jop6k-aogll-7ltgs-eruif-6kk7m-qpktf-gdiqx-mxtrf-vb5e6-eqe"
+}
